@@ -22,19 +22,15 @@ DATASET_CONFIG = {
         'train_path': os.path.join(DATA_DIR, 'NSL-KDD', 'KDDTrain+.txt'),
         'test_path': os.path.join(DATA_DIR, 'NSL-KDD', 'KDDTest+.txt'),
         'column_names': [
-            'duration', 'protocol_type', 'service', 'flag', 'src_bytes', 
-            'dst_bytes', 'land', 'wrong_fragment', 'urgent', 'hot', 
-            'num_failed_logins', 'logged_in', 'num_compromised', 'root_shell', 
-            'su_attempted', 'num_root', 'num_file_creations', 'num_shells', 
-            'num_access_files', 'num_outbound_cmds', 'is_host_login', 
-            'is_guest_login', 'count', 'srv_count', 'serror_rate', 
-            'srv_serror_rate', 'rerror_rate', 'srv_rerror_rate', 'same_srv_rate', 
-            'diff_srv_rate', 'srv_diff_host_rate', 'dst_host_count', 
-            'dst_host_srv_count', 'dst_host_same_srv_rate', 
-            'dst_host_diff_srv_rate', 'dst_host_same_src_port_rate', 
-            'dst_host_srv_diff_host_rate', 'dst_host_serror_rate', 
-            'dst_host_srv_serror_rate', 'dst_host_rerror_rate', 
-            'dst_host_srv_rerror_rate', 'label', 'difficulty'
+            'duration','protocol_type','service','flag','src_bytes','dst_bytes','land',
+            'wrong_fragment','urgent','hot','num_failed_logins','logged_in','num_compromised',
+            'root_shell','su_attempted','num_root','num_file_creations','num_shells',
+            'num_access_files','num_outbound_cmds','is_host_login','is_guest_login',
+            'count','srv_count','serror_rate','srv_serror_rate','rerror_rate','srv_rerror_rate',
+            'same_srv_rate','diff_srv_rate','srv_diff_host_rate','dst_host_count','dst_host_srv_count',
+            'dst_host_same_srv_rate','dst_host_diff_srv_rate','dst_host_same_src_port_rate',
+            'dst_host_srv_diff_host_rate','dst_host_serror_rate','dst_host_srv_serror_rate',
+            'dst_host_rerror_rate','dst_host_srv_rerror_rate','label','difficulty'
         ],
         'categorical_columns': ['protocol_type', 'service', 'flag'],
         'label_column': 'label',
@@ -55,15 +51,15 @@ DATASET_CONFIG = {
     },
     'cicids_2018': {
         'files': [
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Friday-02-03-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Friday-16-02-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Friday-23-02-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv'),
-            os.path.join(DATA_DIR, 'CICIDS-2018', 'Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv')
+            os.path.join(DATA_DIR, 'CICIDS-2018', '02-14-2018.csv'),
+            os.path.join(DATA_DIR, 'CICIDS-2018', '02-15-2018.csv'),
+            os.path.join(DATA_DIR, 'CICIDS-2018', '02-16-2018.csv'),
+            os.path.join(DATA_DIR, 'CICIDS-2018', '02-21-2018.csv'),
+            os.path.join(DATA_DIR, 'CICIDS-2018', '02-22-2018.csv'),
+            #os.path.join(DATA_DIR, 'CICIDS-2018', 'Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv'),
+            #os.path.join(DATA_DIR, 'CICIDS-2018', 'Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv'),
+            #os.path.join(DATA_DIR, 'CICIDS-2018', 'Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv'),
+            #os.path.join(DATA_DIR, 'CICIDS-2018', 'Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv')
         ],
         'label_column': 'Label',
         'attack_map': {
@@ -109,7 +105,7 @@ PREPROCESSING_CONFIG = {
         'normalization': 'standard',  # 'standard', 'minmax', ou 'robust'
         'handle_missing': 'mean',     # 'mean', 'median', ou 'most_frequent'
         'feature_selection': True,
-        'n_features': 25,             # Número de características a selecionar
+        'n_features': 20,             # Número de características a selecionar
         'balance_method': 'smote'     # 'smote', 'adasyn', 'none'
     },
     'cicids_2018': {
