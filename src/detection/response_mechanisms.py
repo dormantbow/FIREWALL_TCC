@@ -9,8 +9,8 @@ import json
 import subprocess
 from datetime import datetime
 
-from ..utils.config import RESPONSE_CONFIG
-from ..utils.logging_utils import performance_monitor, AlertManager
+from utils.config import RESPONSE_CONFIG
+from utils.logging_utils import performance_monitor, AlertManager
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class FirewallInterface:
         Args:
             config: Configuração do firewall (opcional)
         """
-        from ..utils.config import RESPONSE_CONFIG
+        from utils.config import RESPONSE_CONFIG
         self.config = config or RESPONSE_CONFIG['firewall_config']
         self.interface = self.config.get('interface', 'eth0')
         self.rules_file = self.config.get('rules_file')
@@ -407,5 +407,25 @@ class ResponseExecutor:
                 'actions': response_actions,
                 'params': response_params,
                 'results': execution_results,
- 
-(Content truncated due to size limit. Use line ranges to read in chunks)
+            }
+        except Exception as e:
+            execution_results[action] = {
+                'status': 'error',
+                'message': f'Erro ao executar ação {action}: {str(e)}'
+            }
+            logger.error(f"Erro ao executar a ação {action}: {e}")
+
+class ResponseSelector:
+    def __init__(self):
+        print("[ResponseSelector] Inicializado")
+
+    def select_response(self, traffic_info):
+        print("[ResponseSelector] Dados recebidos:")
+        print(traffic_info)
+
+        # Aqui você pode colocar lógicas no futuro
+        # Exemplo de estrutura esperada:
+        # {'ip': '192.168.0.10', 'score': 0.87, 'features': [...], 'attack_type': 'DDoS'}
+
+        # Por enquanto só retorna uma ação padrão
+        return "LIMIT"
