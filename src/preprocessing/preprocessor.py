@@ -13,8 +13,8 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from imblearn.over_sampling import SMOTE, ADASYN
 from imblearn.combine import SMOTETomek
 
-from ..utils.config import PREPROCESSING_CONFIG
-from ..utils.logging_utils import performance_monitor
+from utils.config import PREPROCESSING_CONFIG
+from utils.logging_utils import performance_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,9 @@ class DataPreprocessor:
         self.imputers = {}
         self.encoders = {}
         self.feature_selector = None
+        self.selected_features = None
+        self.feature_selection = self.config.get('feature_selection', False)
+        self.n_features = self.config.get('n_features', 20)
         
         # Flag para indicar se o pré-processador foi treinado
         self.is_fitted = False
@@ -58,6 +61,11 @@ class DataPreprocessor:
         start_time = performance_monitor.start_timer()
         
         try:
+            # Converter NumPy array para DataFrame se necessário
+            is_numpy = isinstance(X, np.ndarray)
+            if is_numpy:
+                X = pd.DataFrame(X)
+                
             # 1. Lidar com valores ausentes
             X = self._handle_missing_values(X, fit=True)
             
@@ -69,7 +77,7 @@ class DataPreprocessor:
             
             # 4. Selecionar características
             if self.config.get('feature_selection', False) and y is not None:
-                X = self._select_features(X, y, fit=True)
+                X = self.select_features(X, y, fit=True)
             
             # 5. Balancear classes (se necessário e se y for fornecido)
             if y is not None and self.config.get('balance_method', 'none') != 'none':
@@ -77,6 +85,10 @@ class DataPreprocessor:
             
             self.is_fitted = True
             
+            # Converter de volta para NumPy array se necessário
+            if is_numpy:
+                X = X.values
+                
             elapsed_time = performance_monitor.stop_timer()
             performance_monitor.log_metric('preprocessor', 'fit_transform', 
                                           elapsed_time * 1000, 'ms', 
@@ -111,6 +123,11 @@ class DataPreprocessor:
         start_time = performance_monitor.start_timer()
         
         try:
+            # Converter NumPy array para DataFrame se necessário
+            is_numpy = isinstance(X, np.ndarray)
+            if is_numpy:
+                X = pd.DataFrame(X)
+                
             # 1. Lidar com valores ausentes
             X = self._handle_missing_values(X, fit=False)
             
@@ -122,8 +139,12 @@ class DataPreprocessor:
             
             # 4. Selecionar características
             if self.config.get('feature_selection', False) and self.feature_selector is not None:
-                X = self._select_features(X, fit=False)
+                X = self.select_features(X, fit=False)
             
+            # Converter de volta para NumPy array se necessário
+            if is_numpy:
+                X = X.values
+                
             elapsed_time = performance_monitor.stop_timer()
             performance_monitor.log_metric('preprocessor', 'transform', 
                                           elapsed_time * 1000, 'ms', 
@@ -154,7 +175,13 @@ class DataPreprocessor:
         logger.debug("Tratando valores ausentes...")
         
         # Verificar se há valores ausentes
-        missing_count = X.isnull().sum().sum()
+        if hasattr(X, 'isnull'):
+            # Se X for um DataFrame pandas
+            missing_count = X.isnull().sum().sum()
+        else:
+            # Se X for um NumPy array
+            missing_count = np.isnan(X).sum()
+
         if missing_count == 0:
             logger.debug("Não há valores ausentes nos dados.")
             return X
@@ -165,8 +192,12 @@ class DataPreprocessor:
         strategy = self.config.get('handle_missing', 'mean')
         
         # Separar colunas numéricas e categóricas
-        numeric_cols = X.select_dtypes(include=['number']).columns
-        categorical_cols = X.select_dtypes(exclude=['number']).columns
+        if hasattr(X, 'select_dtypes'):
+            numeric_cols = X.select_dtypes(include=['number']).columns
+            categorical_cols = X.select_dtypes(exclude=['number']).columns
+        else:
+            numeric_cols = np.arange(X.shape[1])
+            categorical_cols = []
         
         # Tratar colunas numéricas
         if len(numeric_cols) > 0:
@@ -178,7 +209,7 @@ class DataPreprocessor:
                 X_numeric = pd.DataFrame(
                     self.imputers['numeric'].transform(X[numeric_cols]),
                     columns=numeric_cols,
-                    index=X.index
+                    index=X.index if hasattr(X, 'index') else None
                 )
                 X = X.copy()
                 X[numeric_cols] = X_numeric
@@ -193,7 +224,7 @@ class DataPreprocessor:
                 X_categorical = pd.DataFrame(
                     self.imputers['categorical'].transform(X[categorical_cols]),
                     columns=categorical_cols,
-                    index=X.index
+                    index=X.index if hasattr(X, 'index') else None
                 )
                 X = X.copy()
                 X[categorical_cols] = X_categorical
@@ -217,7 +248,10 @@ class DataPreprocessor:
         if self.dataset_type == 'nsl_kdd':
             categorical_cols = self.config.get('categorical_columns', [])
         else:
-            categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
+            if hasattr(X, 'select_dtypes'):
+                categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
+            else:
+                categorical_cols = []
         
         if not categorical_cols:
             logger.debug("Não há variáveis categóricas para codificar.")
@@ -275,7 +309,13 @@ class DataPreprocessor:
             scaler = StandardScaler()
         
         # Selecionar apenas colunas numéricas
-        numeric_cols = X.select_dtypes(include=['number']).columns
+        if hasattr(X, 'select_dtypes'):
+            # Se X for um DataFrame pandas
+            numeric_cols = X.select_dtypes(include=['number']).columns
+        else:
+            # Se X for um NumPy array
+            numeric_cols = np.arange(X.shape[1])  # Todos os índices de coluna
+
         
         if len(numeric_cols) == 0:
             logger.warning("Não há colunas numéricas para normalizar.")
@@ -293,7 +333,8 @@ class DataPreprocessor:
         
         return X
     
-    def _select_features(self, X, y=None, fit=True):
+    # CORRIGIDO: Método select_features agora está dentro da classe DataPreprocessor
+    def select_features(self, X, y=None, fit=True):
         """
         Seleciona as características mais relevantes.
         
@@ -308,11 +349,11 @@ class DataPreprocessor:
         logger.debug("Selecionando características...")
         
         # Verificar se a seleção de características está habilitada
-        if not self.config.get('feature_selection', False):
+        if not self.feature_selection:
             return X
         
         # Número de características a selecionar
-        n_features = self.config.get('n_features', min(20, X.shape[1]))
+        n_features = self.n_features
         
         # Ajustar seletor
         if fit:
@@ -321,31 +362,65 @@ class DataPreprocessor:
             
             self.feature_selector = SelectKBest(f_classif, k=n_features)
             self.feature_selector.fit(X, y)
+            #columns_to_encode = ['protocol_type', 'service', 'flag']
+            #missing_cols = [col for col in columns_to_encode if col not in X.columns]
+
+            #if missing_cols:
+            #    raise ValueError(f"Colunas categóricas ausentes no dataset: {missing_cols}")
+            #else:
+            #    X = pd.get_dummies(X, columns=columns_to_encode)
+            #Verificando colunas existentes apos carregar dataset
+            #print("Colunas disponíveis no dataset:", X.columns.tolist())
+            #X = pd.get_dummies(X, columns=['protocol_type', 'service', 'flag'])
             
             # Armazenar nomes das características selecionadas
             feature_mask = self.feature_selector.get_support()
-            self.selected_features = X.columns[feature_mask].tolist()
+            
+            if hasattr(X, 'columns'):
+                # Se X for um DataFrame pandas
+                self.selected_features = X.columns[feature_mask].tolist()
+            else:
+                # Se X for um NumPy array
+                self.selected_features = np.where(feature_mask)[0].tolist()
             
             logger.debug(f"Características selecionadas: {self.selected_features}")
         
         # Transformar dados
-        if self.feature_selector is not None:
+        if hasattr(self, 'feature_selector') and self.feature_selector is not None:
             if fit:
+                transformed = self.feature_selector.transform(X)
+                
+                # Verifica se X tem índice
+                if hasattr(X, 'index'):
+                    index = X.index
+                else:
+                    index = None
+                
+                # Criar DataFrame com as características selecionadas
+                if hasattr(self, 'selected_features'):
+                    columns = self.selected_features
+                else:
+                    columns = [f'feature_{i}' for i in range(transformed.shape[1])]
+                
                 X_selected = pd.DataFrame(
-                    self.feature_selector.transform(X),
-                    columns=self.selected_features,
-                    index=X.index
+                    transformed,
+                    columns=columns,
+                    index=index
                 )
             else:
                 # Para novos dados, selecionar apenas as características já selecionadas
-                missing_cols = set(self.selected_features) - set(X.columns)
-                if missing_cols:
-                    logger.warning(f"Colunas ausentes nos novos dados: {missing_cols}")
-                    # Adicionar colunas ausentes com zeros
-                    for col in missing_cols:
-                        X[col] = 0
-                
-                X_selected = X[self.selected_features]
+                if hasattr(X, 'columns'):
+                    # Se X for um DataFrame pandas
+                    missing_cols = set(self.selected_features) - set(X.columns)
+                    if missing_cols:
+                        logger.warning(f"Colunas ausentes nos novos dados: {missing_cols}")
+                        for col in missing_cols:
+                            X[col] = 0
+                    X_selected = X[self.selected_features]
+                else:
+                    # Se X for um NumPy array
+                    X_selected = self.feature_selector.transform(X)
+                    X_selected = pd.DataFrame(X_selected)
             
             return X_selected
         
@@ -365,7 +440,14 @@ class DataPreprocessor:
         logger.debug("Balanceando classes...")
         
         # Verificar distribuição de classes
-        class_counts = y.value_counts()
+        if hasattr(y, 'value_counts'):
+            # Se y for uma Series pandas
+            class_counts = y.value_counts()
+        else:
+            # Se y for um NumPy array
+            unique_classes, class_counts = np.unique(y, return_counts=True)
+            class_counts = pd.Series(class_counts, index=unique_classes)
+
         logger.debug(f"Distribuição de classes original: {class_counts.to_dict()}")
         
         # Verificar se o balanceamento é necessário
@@ -390,51 +472,22 @@ class DataPreprocessor:
             balancer = SMOTE(random_state=42)
         
         # Aplicar balanceamento
-        X_resampled, y_resampled = balancer.fit_resample(X, y)
-        
-        # Verificar nova distribuição
-        new_class_counts = pd.Series(y_resampled).value_counts()
-        logger.debug(f"Distribuição de classes após balanceamento: {new_class_counts.to_dict()}")
-        
-        return X_resampled, y_resampled
-    
-    def save(self, filepath):
-        """
-        Salva o pré-processador em um arquivo.
-        
-        Args:
-            filepath: Caminho do arquivo
-        """
-        import joblib
-        
-        if not self.is_fitted:
-            raise ValueError("O pré-processador não foi treinado. Não há nada para salvar.")
-        
-        # Criar diretório se não existir
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        
-        # Salvar o pré-processador
-        joblib.dump(self, filepath)
-        logger.info(f"Pré-processador salvo em {filepath}")
-    
-    @classmethod
-    def load(cls, filepath):
-        """
-        Carrega um pré-processador de um arquivo.
-        
-        Args:
-            filepath: Caminho do arquivo
+        try:
+            X_resampled, y_resampled = balancer.fit_resample(X, y)
             
-        Returns:
-            DataPreprocessor: Pré-processador carregado
-        """
-        import joblib
-        
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Arquivo {filepath} não encontrado.")
-        
-        # Carregar o pré-processador
-        preprocessor = joblib.load(filepath)
-        logger.info(f"Pré-processador carregado de {filepath}")
-        
-        return preprocessor
+            # Verificar nova distribuição
+            if hasattr(y_resampled, 'value_counts'):
+                new_counts = y_resampled.value_counts()
+            else:
+                unique_classes, new_counts_values = np.unique(y_resampled, return_counts=True)
+                new_counts = pd.Series(new_counts_values, index=unique_classes)
+            
+            logger.debug(f"Distribuição de classes após balanceamento: {new_counts.to_dict()}")
+            logger.debug(f"Dados balanceados: {X_resampled.shape[0]} amostras (original: {X.shape[0]})")
+            
+            return X_resampled, y_resampled
+            
+        except Exception as e:
+            logger.error(f"Erro no balanceamento de classes: {str(e)}")
+            logger.warning("Usando dados originais sem balanceamento.")
+            return X, y
