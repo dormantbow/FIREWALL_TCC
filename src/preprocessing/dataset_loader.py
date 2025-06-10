@@ -11,9 +11,14 @@ import zipfile
 import tarfile
 import gzip
 from tqdm import tqdm
+import sys
 
-from ..utils.config import DATA_DIR, DATASET_CONFIG
-from ..utils.logging_utils import performance_monitor
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from src.utils.config import DATA_DIR, DATASET_CONFIG
+
+from utils.logging_utils import performance_monitor
+#from tcc_firewall.src.utils.logging_utils import performance_monitor
+
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +174,7 @@ class DatasetLoader:
         # Carregar o dataset
         start_time = performance_monitor.start_timer()
         
-        try:
+        try:    
             # Carregar o dataset com os nomes das colunas
             df = pd.read_csv(file_path, header=None, names=self.nsl_kdd_config['column_names'])
             
@@ -181,6 +186,10 @@ class DatasetLoader:
             
             # Separar features e rótulos
             X = df.drop(['label', 'difficulty', 'attack_category', 'attack_class'], axis=1)
+            # Codificar colunas categóricas (ex: protocol_type, service, flag)
+            categorical_cols = X.select_dtypes(include=['object']).columns
+            X = pd.get_dummies(X, columns=categorical_cols)
+            
             y = df['attack_class']
             
             elapsed_time = performance_monitor.stop_timer()
@@ -219,80 +228,81 @@ class DatasetLoader:
         logger.warning(f"Ataque desconhecido: {attack_name}")
         return 'unknown'
     
-    def load_cicids(self, sample_size=None):
+    def load_cicids(self, sample_size=None, file_names=None, max_files=None):
         """
-        Carrega o dataset CICIDS-2018.
-        
+        Carrega o dataset CICIDS-2018 a partir dos arquivos disponíveis no diretório.
+
         Args:
-            sample_size: Tamanho da amostra a ser carregada (opcional)
-            
+            sample_size: Tamanho da amostra a ser carregada por arquivo (opcional)
+            file_names: Lista de nomes de arquivos específicos a carregar (opcional)
+            max_files: Número máximo de arquivos a carregar (opcional)
+
         Returns:
             tuple: (X, y) com dados e rótulos
         """
         logger.info("Carregando dataset CICIDS-2018...")
-        
-        # Verificar se os arquivos existem
-        files_exist = all(os.path.exists(file_path) for file_path in self.cicids_config['files'])
-        
-        if not files_exist:
-            logger.warning("Arquivos CICIDS-2018 não encontrados. Tentando fazer o download...")
-            success = self.download_cicids()
-            if not success:
-                raise FileNotFoundError("Não foi possível baixar o dataset CICIDS-2018")
-        
-        # Carregar o dataset
+
+        data_dir = os.path.join(DATA_DIR, 'CICIDS-2018')
+
+        # Obter lista de arquivos CSV no diretório
+        available_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir)
+                        if f.endswith('.csv') and os.path.isfile(os.path.join(data_dir, f))]
+
+        if not available_files:
+            logger.warning("Nenhum arquivo CSV encontrado no diretório CICIDS-2018.")
+            raise FileNotFoundError("Nenhum arquivo CICIDS-2018 disponível para carregar.")
+
+        # Selecionar arquivos com base nos parâmetros
+        if file_names:
+            selected_files = [os.path.join(data_dir, f) for f in file_names if os.path.join(data_dir, f) in available_files]
+        elif max_files:
+            selected_files = available_files[:max_files]
+        else:
+            selected_files = available_files
+
+        logger.info(f"{len(selected_files)} arquivos serão carregados.")
+
+        # Carregamento com temporizador
         start_time = performance_monitor.start_timer()
-        
+
         try:
-            # Lista para armazenar os dataframes
             dfs = []
-            
-            # Carregar cada arquivo
-            for file_path in self.cicids_config['files']:
-                if not os.path.exists(file_path):
-                    logger.warning(f"Arquivo {file_path} não encontrado. Pulando.")
-                    continue
-                
-                # Carregar o arquivo
+
+            for file_path in selected_files:
                 logger.info(f"Carregando arquivo {os.path.basename(file_path)}...")
                 df = pd.read_csv(file_path, low_memory=False)
-                
-                # Aplicar amostragem se necessário
+
                 if sample_size and len(df) > sample_size:
                     df = df.sample(sample_size, random_state=42)
-                
+
                 dfs.append(df)
-            
-            # Concatenar os dataframes
+
             if not dfs:
-                raise ValueError("Nenhum arquivo CICIDS-2018 foi carregado")
-            
+                raise ValueError("Nenhum arquivo válido foi carregado.")
+
             df = pd.concat(dfs, ignore_index=True)
-            
-            # Mapear rótulos para categorias
+
+            # Mapear rótulos
             df['attack_category'] = df[self.cicids_config['label_column']].apply(self._map_cicids_attack_to_category)
-            
-            # Mapear categorias para números
             df['attack_class'] = df['attack_category'].map(self.cicids_config['attack_map'])
-            
-            # Remover colunas desnecessárias
+
             drop_columns = self.cicids_config.get('drop_columns', []) + [self.cicids_config['label_column'], 'attack_category']
             X = df.drop(drop_columns, axis=1, errors='ignore')
             y = df['attack_class']
-            
+
             elapsed_time = performance_monitor.stop_timer()
             performance_monitor.log_metric('dataset_loader', 'load_cicids', 
-                                          elapsed_time * 1000, 'ms', 
-                                          {'rows': len(df), 'columns': len(df.columns)})
-            
+                                        elapsed_time * 1000, 'ms', 
+                                        {'rows': len(df), 'columns': len(df.columns)})
+
             logger.info(f"Dataset CICIDS-2018 carregado com sucesso: {len(df)} amostras")
             return X, y
-        
+
         except Exception as e:
             elapsed_time = performance_monitor.stop_timer()
             performance_monitor.log_metric('dataset_loader', 'load_cicids', 
-                                          elapsed_time * 1000, 'ms', 
-                                          {'error': str(e)})
+                                        elapsed_time * 1000, 'ms', 
+                                        {'error': str(e)})
             logger.error(f"Erro ao carregar dataset CICIDS-2018: {str(e)}")
             raise
     
