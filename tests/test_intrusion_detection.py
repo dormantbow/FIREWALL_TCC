@@ -386,5 +386,9 @@ def test_zero_day_detection(intrusion_detector, X_test, y_test):
         plt.xlabel('Diferença de confiança (modificada - original)')
         plt.ylabel('Frequência')
         plt.title('Distribuição de diferenças de confiança')
+        
+    except Exception as e:
+        logger.error(f"Erro ao simular ataques zero-day: {e}")
+        traceback.print_exc()
  
-(Content truncated due to size limit. Use line ranges to read in chunks)
+#(Content truncated due to size limit. Use line ranges to read in chunks)
